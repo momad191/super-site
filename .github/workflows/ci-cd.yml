@@ -1,0 +1,64 @@
+name: CI / Build / Deploy to Cloud Run
+on:
+  push:
+    branches: [ main ]
+
+env:
+  GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+  CLOUD_RUN_SERVICE: ${{ secrets.CLOUD_RUN_SERVICE }}
+  IMAGE: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/hello-repo/hello-nest:${{ github.sha }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # needed if you later adopt Workload Identity Federation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'   # pick LTS version you support
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build app
+        run: npm run build
+
+      # Authenticate to Google Cloud (service account JSON)
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT }}
+          version: 'latest'
+
+      - name: Configure Docker to use gcloud credentials for Artifact Registry
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v1
+        with:
+          service: ${{ env.CLOUD_RUN_SERVICE }}
+          image: ${{ env.IMAGE }}
+          region: ${{ env.GCP_REGION }}
+          project_id: ${{ env.GCP_PROJECT }}
