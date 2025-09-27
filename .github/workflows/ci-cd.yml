@@ -37,7 +37,9 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          # credentials_json: '${{ secrets.GCP_SA_KEY }}'
+          workload_identity_provider: '${{ secrets.WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.SERVICE_ACCOUNT_EMAIL }}'
 
       - name: Install gcloud SDK
         uses: google-github-actions/setup-gcloud@v3
